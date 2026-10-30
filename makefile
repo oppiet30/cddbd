@@ -49,7 +49,7 @@ cf= # -g -Wall -Wuninitialized -Wunused -pedantic -Wformat
 # the following is used for Alpha/OSF1 V4.0
 # cf=-g4 -w0 -O0
 
-CFLAGS += -O $(OSCFLAGS) $(cf)
+CFLAGS += -std=gnu99 -O2 $(OSCFLAGS) $(cf)
 LDFLAGS = $(OSLDFLAGS)
 
 CDDBDVER := cddbd-1.5.2
@@ -149,7 +149,7 @@ co:
 	co -l $(TEXT) $(HDR) $(MISC) $(SCRIPT) $(SRC) $(MANIFEST).hdr
 
 # Header dependencies
-access.h: config.sh
+access.h configurables.h secure.c .accessfile &: config.sh
 	sh config.sh
 bit_array.o: bit_array.h
 cddbd.o: access.h cddbd.h configurables.h list.h patchlevel.h

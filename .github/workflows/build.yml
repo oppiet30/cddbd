@@ -1,0 +1,23 @@
+name: C build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+      - name: Configure non-interactively
+        run: |
+          printf '\n\n\nn\nn\n' | sh ./config.sh
+          test -s configurables.h
+          test -s access.h
+          test -s secure.c
+      - name: Build in parallel
+        run: make -j4
+      - name: Verify executable
+        run: test -x ./cddbd && file ./cddbd
