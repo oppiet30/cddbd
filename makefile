@@ -149,6 +149,8 @@ co:
 	co -l $(TEXT) $(HDR) $(MISC) $(SCRIPT) $(SRC) $(MANIFEST).hdr
 
 # Header dependencies
+# cddbd.h includes configurables.h; all objects must wait for configuration.
+$(OBJ): configurables.h
 access.h configurables.h secure.c .accessfile &: config.sh
 	sh config.sh
 bit_array.o: bit_array.h
