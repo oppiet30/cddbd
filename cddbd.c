@@ -1624,7 +1624,7 @@ cddbd_read_access(char *accessfile, int mandatory)
 				continue;
 
 			if(!cddbd_parse_iface(args.arg[1], buf, line, errstr)) {
-				cddbd_log(LOG_ERR, errstr);
+				cddbd_log(LOG_ERR, "%s", errstr);
 				quit(QUIT_ERR);
 			}
 
@@ -1728,7 +1728,7 @@ cddbd_read_access(char *accessfile, int mandatory)
 				cddbd_access_err(line);
 
 			if(!cddbd_parse_iface(args.arg[1], buf, line, errstr)) {
-				cddbd_log(LOG_ERR, errstr);
+				cddbd_log(LOG_ERR, "%s", errstr);
 				quit(QUIT_ERR);
 			}
 
@@ -4891,7 +4891,8 @@ cddbd_link(char *old, char *new)
 	struct stat sbuf1;
 	struct stat sbuf2;
 
-	link(old, new);
+	if(link(old, new) != 0 && errno != EEXIST)
+		return 1;
 
 	if(stat(new, &sbuf1) != 0 || stat(old, &sbuf2) != 0 ||
 	    sbuf1.st_ino != sbuf2.st_ino)

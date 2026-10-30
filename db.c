@@ -1842,10 +1842,8 @@ db_parse_revision(const char *line, long long *revision)
 		return -1;
 	}
 	errno = saved_errno;
-	while(isspace((unsigned char)*end))
-		end++;
-	if(*end != '\0')
-		return -1;
+	/* Legacy scanf accepted an integer prefix, including 1.0 and
+	 * concatenated comments. Preserve that behavior without overflow. */
 	*revision = value;
 	return 1;
 }

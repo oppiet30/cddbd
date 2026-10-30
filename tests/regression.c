@@ -41,7 +41,7 @@ static void test_revision(const char *comment, long long expected, int valid)
     count = fread(written, 1, sizeof(written) - 1, output);
     assert(!ferror(output));
     written[count] = '\0';
-    snprintf(revision, sizeof(revision), " Revision: %lld\n", expected);
+    snprintf(revision, sizeof(revision), " Revision: %lld", expected);
     assert(strstr(written, revision) != NULL);
     assert(strstr(written, "DTITLE=Artist / 月とカメレオン\n") != NULL);
     assert(strstr(written, "TTITLE0=風の向くまま\n") != NULL);
@@ -51,6 +51,28 @@ static void test_revision(const char *comment, long long expected, int valid)
     assert(record != NULL && record->db_rev == expected);
     db_free(record);
     fclose(output);
+}
+
+static void test_links(void)
+{
+    char directory[] = "/tmp/cddbd-link-XXXXXX";
+    char old[256], target[256], different[256], missing[256];
+    FILE *fp;
+    assert(mkdtemp(directory) != NULL);
+    snprintf(old, sizeof(old), "%s/old", directory);
+    snprintf(target, sizeof(target), "%s/target", directory);
+    snprintf(different, sizeof(different), "%s/different", directory);
+    snprintf(missing, sizeof(missing), "%s/missing", directory);
+    fp = fopen(old, "w"); assert(fp != NULL); fclose(fp);
+    fp = fopen(different, "w"); assert(fp != NULL); fclose(fp);
+    assert(cddbd_link(old, target) == 0);
+    assert(cddbd_link(old, target) == 0);
+    assert(cddbd_link(old, different) != 0);
+    assert(cddbd_link(missing, target) != 0);
+    assert(unlink(target) == 0);
+    assert(unlink(different) == 0);
+    assert(unlink(old) == 0);
+    assert(rmdir(directory) == 0);
 }
 
 static void test_revisions(void)
@@ -71,7 +93,9 @@ static void test_revisions(void)
     test_revision("# Revision: -1", 0, 0);
     test_revision("# Revision: 9223372036854775808", 0, 0);
     test_revision("# Revision: 999999999999999999999999999999", 0, 0);
-    test_revision("# Revision: 12garbage", 0, 0);
+    test_revision("# Revision: 12garbage", 12, 1);
+    test_revision("# Revision: 1.0", 1, 1);
+    test_revision("# Revision: 1# Processed by: old cddbd", 1, 1);
     test_revision("# Revision: ", 0, 0);
     test_revision("# Revision: invalid", 0, 0);
     high.db_rev = LLONG_MAX;
@@ -167,6 +191,7 @@ int main(void)
         assert(memcmp(input, output, sizeof(input)) == 0);
     }
     test_revisions();
+    test_links();
     puts("Formatting, logging, freedb disc-ID, bit-packing, and revision checks passed.");
     return 0;
 }
