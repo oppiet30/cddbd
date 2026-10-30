@@ -11,7 +11,8 @@ unsigned int db_gen_discid(db_t *);
 
 int db_cmp(db_t *, db_t *);
 
-static void test_revision(const char *comment, long long expected, int valid)
+static void test_revision_record(const char *comment, long long expected, int valid,
+    const char *optional_fields)
 {
     char error[CDDBBUFSIZ] = {0}, written[4096], revision[128];
     FILE *input = tmpfile(), *output;
@@ -21,8 +22,8 @@ static void test_revision(const char *comment, long long expected, int valid)
     fprintf(input, "# xmcd\n#\n# Track frame offsets:\n#\t296\n#\n"
         "# Disc length: 344 seconds\n#\n%s\n#\n"
         "DISCID=03015501\nDTITLE=Artist / 月とカメレオン\n"
-        "DYEAR=1997\nDGENRE=Rock\nTTITLE0=風の向くまま\n"
-        "EXTD=\nEXTT0=\nPLAYORDER=\n", comment);
+        "%sTTITLE0=風の向くまま\n"
+        "EXTD=\nEXTT0=\nPLAYORDER=\n", comment, optional_fields);
     rewind(input);
     record = db_read(input, error, DF_ENC_UTF8 | DF_ENC_LATIN1);
     fclose(input);
@@ -51,6 +52,11 @@ static void test_revision(const char *comment, long long expected, int valid)
     assert(record != NULL && record->db_rev == expected);
     db_free(record);
     fclose(output);
+}
+
+static void test_revision(const char *comment, long long expected, int valid)
+{
+    test_revision_record(comment, expected, valid, "DYEAR=1997\nDGENRE=Rock\n");
 }
 
 static void test_links(void)
@@ -84,6 +90,9 @@ static void test_revisions(void)
     sublen = strlen(substr); prclen = strlen(prcstr);
     for(int i = 0; i < MAX_PROTO_LEVEL; i++) proto_flags[i+1] |= proto_flags[i];
     test_revision("# Revision: 0", 0, 1);
+    test_revision_record("# Revision: 1", 1, 1, "");
+    test_revision_record("# Revision: 1", 1, 1, "DYEAR=1997\n");
+    test_revision_record("# Revision: 1", 1, 1, "DGENRE=Rock\n");
     test_revision("# Revision: 2147483647", 2147483647LL, 1);
     test_revision("# Revision: 2147483648", 2147483648LL, 1);
     test_revision("# Revision: 2856255744", 2856255744LL, 1);

@@ -2374,31 +2374,24 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 		return 0;
 	}
 
-	p2 = (char *)strdup("\n");
-	if(db->db_phase[DP_DYEAR]==0) {
-		db->db_phase[DP_DYEAR] = list_init(0, 0, db_free_string, 0);
-		if(list_add_back(db->db_phase[DP_DYEAR], (void *)p2) == 0) {
-			cddbd_snprintf(errstr, CDDBBUFSIZ,
-			    "can't malloc list entry");
-			free(p2);   
+	/* Supply defaults only for optional fields that were not present. */
+	for(i = DP_DYEAR; i <= DP_DGENRE; i++) {
+		if(db->db_phase[i] != 0)
+			continue;
+		db->db_phase[i] = list_init(0, 0, db_free_string, 0);
+		if(db->db_phase[i] == 0) {
+			cddbd_snprintf(errstr, CDDBBUFSIZ, "can't malloc list head");
 			db_cleanup(fp, db, DE_NOMEM, (flags | DF_DONE));
 			return 0;
 		}
-	}
-
-	p2 = (char *)strdup("\n");
-	if(db->db_phase[DP_DGENRE]==0) {
-		db->db_phase[DP_DGENRE] = list_init(0, 0, db_free_string, 0);
-		if(list_add_back(db->db_phase[DP_DGENRE], (void *)p2) == 0) {
-			cddbd_snprintf(errstr, CDDBBUFSIZ,
-			    "can't malloc list entry");
+		p2 = (char *)strdup("\n");
+		if(p2 == 0 || list_add_back(db->db_phase[i], (void *)p2) == 0) {
+			cddbd_snprintf(errstr, CDDBBUFSIZ, "can't malloc list entry");
 			free(p2);
 			db_cleanup(fp, db, DE_NOMEM, (flags | DF_DONE));
 			return 0;
 		}
 	}
-	
-
 
 	/* Check the comments. */
 
