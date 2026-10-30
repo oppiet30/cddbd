@@ -20,7 +20,7 @@
  */
 
 #ifndef LINT
-static char *const _bit_array_c_ident_ = "@(#)$Id: bit_array.c,v 1.4 2004/08/30 01:05:36 joerg78 Exp $";
+/* _bit_array_c_ident_ = "@(#)$Id: bit_array.c,v 1.4 2004/08/30 01:05:36 joerg78 Exp $" */
 #endif 
 
 #include "bit_array.h"
@@ -28,12 +28,12 @@ static char *const _bit_array_c_ident_ = "@(#)$Id: bit_array.c,v 1.4 2004/08/30 
 
 void bit_uint2char(unsigned int n, unsigned int width, unsigned int ti[], unsigned char tc[]) {
 	unsigned index_dst=0,i;
-	unsigned mask = ( 1 << width) - 1 ;
+	unsigned mask = ( 1U << width) - 1 ;
 	memset(tc,0,bit_size(n,width)); /* sanity */
 	
 	for ( i=0; i < n ;i++) {
 		unsigned int number = ti[i] & mask;
-		int index_number = width;
+		unsigned int index_number = width;
 
 		while ( index_number > 0 ) {
 			unsigned int car_rest = 8 - ( index_dst & 7 );
@@ -71,12 +71,12 @@ void bit_char2uint(unsigned int n, unsigned int width, unsigned int ti[], unsign
 			
 			if ( index_number <= car_rest ) {
 				tmp = car >> ( car_rest - index_number );
-				tmp &= ( 1 << index_number )  -1;
+				tmp &= ( 1U << index_number )  -1;
 				number |= tmp;
 				index_src+=index_number;
 				index_number=0;
 			} else {
-				tmp = car & ( ( 1 << car_rest )  - 1 ) ;
+				tmp = car & ( ( 1U << car_rest )  - 1 ) ;
 				number |= tmp << ( index_number - car_rest ) ;
 				index_src+=car_rest;
 				index_number-=car_rest;

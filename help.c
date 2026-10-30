@@ -21,7 +21,7 @@
  */
 
 #ifndef LINT
-static char *const _help_c_ident_ = "@(#)$Id: help.c,v 1.9.2.1 2006/04/17 13:22:21 joerg78 Exp $";
+/* _help_c_ident_ = "@(#)$Id: help.c,v 1.9.2.1 2006/04/17 13:22:21 joerg78 Exp $" */
 #endif
 
 

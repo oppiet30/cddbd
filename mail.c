@@ -21,7 +21,7 @@
  */
 
 #ifndef LINT
-static char *const _mail_c_ident_ = "@(#)$Id: mail.c,v 1.30.2.2 2006/04/16 14:55:43 joerg78 Exp $";
+/* _mail_c_ident_ = "@(#)$Id: mail.c,v 1.30.2.2 2006/04/16 14:55:43 joerg78 Exp $" */
 #endif
 
 #include <sys/wait.h>
@@ -668,7 +668,7 @@ get_body(FILE *fp, email_hdr_t *eh, char *tmail, char *errstr)
 		else
 			p = buf;
 
-		if(len != 0 && fwrite(p, 1, len, tfp) != len) {
+		if(len != 0 && fwrite(p, 1, (size_t)len, tfp) != (size_t)len) {
 			cddbd_snprintf(errstr, CDDBBUFSIZ,
 			    "Can't write mail tmp file %s (%d)",
 			    tmail, errno);
@@ -734,7 +734,7 @@ static char *get_hdr_line(char *buf, int size, FILE *fp)
 
 static FILE *build_returnmail(FILE *fp, FILE *tfp, char *tmail, char *errstr)
 {
-	int len;
+	size_t len;
 	int blank;
 	char buf[CDDBBUFSIZ];
 	char *p;
@@ -1218,7 +1218,7 @@ return_mail(FILE *fp, email_hdr_t *eh, int flags, char *errstr)
 	tret = cddbd_mktemp();
 
 	if(flags & MF_FAIL) {
-		strncpy(buf, errstr, sizeof(buf));
+		snprintf(buf, sizeof(buf), "%s", errstr);
 		buf[sizeof(buf) - 1] = '\0';
 
 		if((p = (char *)strchr(buf, '\n')) != NULL)

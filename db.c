@@ -21,7 +21,7 @@
  */
 
 #ifndef LINT
-static char *const _db_c_ident_ = "@(#)$Id: db.c,v 1.41.2.17 2006/04/19 16:49:05 joerg78 Exp $";
+/* _db_c_ident_ = "@(#)$Id: db.c,v 1.41.2.17 2006/04/19 16:49:05 joerg78 Exp $" */
 #endif
 
 #include <stdlib.h>
@@ -33,6 +33,7 @@ static char *const _db_c_ident_ = "@(#)$Id: db.c,v 1.41.2.17 2006/04/19 16:49:05
 #include <dirent.h>
 #include <time.h>
 #include "cddbd.h"
+#include <stdint.h>
 #include "patchlevel.h"
 
 
@@ -92,7 +93,7 @@ char *hdrstr = " xmcd";
 char *lenstr = " Disc length: %hd";
 char *offstr = "%d";
 char *trkstr = " Track frame offsets:";
-char *revstr = " Revision: %d";
+char *revstr = " Revision: %lld";
 char *substr = " Submitted via:";
 char *prcstr = " Processed by:";
 
@@ -366,7 +367,6 @@ void cddbd_update(void)
 	int duped;
 	int noread;
 	int updated;
-	int failed;
 	int entries;
 	int dowrite;
 	char cdir[CDDBBUFSIZ];
@@ -383,8 +383,6 @@ void cddbd_update(void)
 	FILE *fp;
 	db_t *db;
 	db_t *db2;
-	int  db_utf8;
-	int  db2_utf8;
 	email_hdr_t eh;
 
 	/* No update necessary. */
@@ -402,12 +400,9 @@ void cddbd_update(void)
 	duped = 0;
 	noread = 0;
 	updated = 0;
-	failed = 0;
 	entries = 0;
 	db = 0;
 	db2 = 0;
-	db_utf8 = 0;
-	db2_utf8 = 0;
 
 	/* loop through all categories, treating each one as directory */
 	for(i = 0; categlist[i] != 0; i++) {
@@ -612,7 +607,7 @@ void cddbd_update(void)
 								copy++;
 							else {			/* new one is older, or mis-matched */
 								cddbd_snprintf(errstr2, CDDBBUFSIZ,
-								  "Existing entry found with higher revision (%d) than submitted (%d)", 
+								  "Existing entry found with higher revision (%lld) than submitted (%lld)",
 								  db2->db_rev, db->db_rev);
 								dup++;
 							}
@@ -626,8 +621,6 @@ void cddbd_update(void)
 
 					quit(QUIT_ERR);
 			} /* switch(dup_policy) */
-
-			failed++;
 
 			if(copy || merge) {
 				/*------------------------------------------------------------------*/
@@ -843,7 +836,7 @@ void cddbd_update(void)
 				    dp->d_name)) {
 					cddbd_log(LOG_ERR | LOG_UPDATE,
 					    "Warning: couldn't update the"
-					    " history for %s/%08x",
+					    " history for %s/%s",
 					    categlist[i], dp->d_name);
 				}
 
@@ -859,7 +852,6 @@ void cddbd_update(void)
 				duped++;
 			}
 
-			failed--;
 			fclose(fp);
 
 			/* Remove the old file. */
@@ -1203,6 +1195,7 @@ void cddbd_match(void)
 void
 cddbd_check_db(int check_level, int fix_level)
 {
+	(void)check_level;
 	int i;
 	int bad;
 	int post;
@@ -1393,7 +1386,7 @@ cddbd_check_db(int check_level, int fix_level)
 			}
 
 			/* Check the file permissions. */
-			if((sbuf.st_mode & 0777) != db_file_mode) {
+			if((sbuf.st_mode & 0777) != (mode_t)db_file_mode) {
 				if(fix_level >= FL_REPAIR) {
 					if(chmod(file, (mode_t)db_file_mode)) {
 						cddbd_log(LOG_ERR | LOG_UPDATE,
@@ -1544,7 +1537,7 @@ cddbd_check_db(int check_level, int fix_level)
 
 					cddbd_log(LOG_INFO,
 					    "Added %s %08x to DB entry: %s",
-					    parstab[DP_DISCID].dp_name, uint_as_ptr (discid),
+					    parstab[DP_DISCID].dp_name, discid,
 					    file);
 
 					post++;
@@ -1825,6 +1818,36 @@ FILE * db_prepare_unix_read(char *filename) {
 #endif /* DB_WINDOWS_FORMAT */
 
 
+/* Return 0 for another comment, 1 for a revision, -1 for invalid input.
+ * Avoid scanf integer overflow when importing legacy database records. */
+static int
+db_parse_revision(const char *line, long long *revision)
+{
+	char *end;
+	long long value;
+	int saved_errno;
+
+	while(isspace((unsigned char)*line))
+		line++;
+	if(strncmp(line, "Revision:", 9) != 0)
+		return 0;
+	line += 9;
+	while(isspace((unsigned char)*line))
+		line++;
+	saved_errno = errno;
+	errno = 0;
+	value = strtoll(line, &end, 10);
+	if(end == line || errno == ERANGE || value < 0) {
+		errno = saved_errno;
+		return -1;
+	}
+	errno = saved_errno;
+	/* Legacy scanf accepted an integer prefix, including 1.0 and
+	 * concatenated comments. Preserve that behavior without overflow. */
+	*revision = value;
+	return 1;
+}
+
 /** 
  * Reads a DB record from the given file
  * 
@@ -1835,6 +1858,8 @@ FILE * db_prepare_unix_read(char *filename) {
  * @return parsed database record (allocated here)
  */
 db_t *db_read(FILE *fp, char *errstr, int flags) {
+	int revision_status;
+	long long ignored_revision;
 	int i;
 	int j;
 	int n;
@@ -1848,7 +1873,9 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 	int class;
 	int optional;			/* used to look for optional fields */
 	unsigned int discid;
+#ifdef DB_WINDOWS_FORMAT
 	unsigned int tmpdiscid;
+#endif
 	db_t *db;
 	lhead_t *lh;
 	lhead_t *lh2;
@@ -2051,9 +2078,9 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 		/* pick-up email info added in posting process */
 		sscanf(buf, "## Cs: %d", &db->db_eh.eh_charset);
 		sscanf(buf, "## En: %d", &db->db_eh.eh_encoding);
-		sscanf(buf, "## To: %s", &db->db_eh.eh_to);
-		sscanf(buf, "## Rc: %s", &db->db_eh.eh_rcpt);
-		sscanf(buf, "## Ho: %s", &db->db_eh.eh_host);
+		sscanf(buf, "## To: %2047s", db->db_eh.eh_to);
+		sscanf(buf, "## Rc: %2047s", db->db_eh.eh_rcpt);
+		sscanf(buf, "## Ho: %2047s", db->db_eh.eh_host);
 
 		/* zeke - look for valid marker on line, else bad line entry... */
 		class = db_classify(buf, &n, &p);
@@ -2253,7 +2280,7 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 			db->db_flags |= DB_STRIP;
 
 		if(dp->dp_flags & PF_NUMBER) {
-			for (i=0;i<strlen(p)-1;i++) {
+			for (i = 0; p[i] != '\0' && p[i + 1] != '\0'; i++) {
 				if(!isdigit(p[i]) && p[i] != '\r') {
 					cddbd_snprintf(errstr, CDDBBUFSIZ,
 					    "numeric value in %s expected", dp->dp_name);
@@ -2347,31 +2374,24 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 		return 0;
 	}
 
-	p2 = (char *)strdup("\n");
-	if(db->db_phase[DP_DYEAR]==0) {
-		db->db_phase[DP_DYEAR] = list_init(0, 0, db_free_string, 0);
-		if(list_add_back(db->db_phase[DP_DYEAR], (void *)p2) == 0) {
-			cddbd_snprintf(errstr, CDDBBUFSIZ,
-			    "can't malloc list entry");
-			free(p2);   
+	/* Supply defaults only for optional fields that were not present. */
+	for(i = DP_DYEAR; i <= DP_DGENRE; i++) {
+		if(db->db_phase[i] != 0)
+			continue;
+		db->db_phase[i] = list_init(0, 0, db_free_string, 0);
+		if(db->db_phase[i] == 0) {
+			cddbd_snprintf(errstr, CDDBBUFSIZ, "can't malloc list head");
 			db_cleanup(fp, db, DE_NOMEM, (flags | DF_DONE));
 			return 0;
 		}
-	}
-
-	p2 = (char *)strdup("\n");
-	if(db->db_phase[DP_DGENRE]==0) {
-		db->db_phase[DP_DGENRE] = list_init(0, 0, db_free_string, 0);
-		if(list_add_back(db->db_phase[DP_DGENRE], (void *)p2) == 0) {
-			cddbd_snprintf(errstr, CDDBBUFSIZ,
-			    "can't malloc list entry");
+		p2 = (char *)strdup("\n");
+		if(p2 == 0 || list_add_back(db->db_phase[i], (void *)p2) == 0) {
+			cddbd_snprintf(errstr, CDDBBUFSIZ, "can't malloc list entry");
 			free(p2);
 			db_cleanup(fp, db, DE_NOMEM, (flags | DF_DONE));
 			return 0;
 		}
 	}
-	
-
 
 	/* Check the comments. */
 
@@ -2393,16 +2413,17 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 
 	for(; !list_rewound(lh); list_back(lh)) {
 		lp = list_cur(lh);
-		if(sscanf((char *)lp->l_data, revstr, &db->db_rev) == 1)
+		if((revision_status = db_parse_revision(
+		    (char *)lp->l_data, &db->db_rev)) != 0)
 			break;
 	}
 
 	/* We have a revision. */
 	if(!list_rewound(lh)) {
-		/* Make sure the revision is positive. */
-		if(db->db_rev < 0) {
+		/* Reject malformed, negative, and out-of-range revisions. */
+		if(revision_status < 0) {
 			cddbd_snprintf(errstr, CDDBBUFSIZ,
-			    "revision in comments less 0 (%d)", db->db_rev);
+			    "invalid or out-of-range revision in comments");
 			db_cleanup(fp, db, DE_INVALID, (flags | DF_DONE));
 			return 0;
 		}
@@ -2414,14 +2435,14 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 			lp = list_cur(lh);
 			list_back(lh);
 
-			if(sscanf((char *)lp->l_data, revstr, &n) == 1) {
+			if(db_parse_revision((char *)lp->l_data, &ignored_revision) != 0) {
 				list_delete(lh, lp);
 				db->db_flags &= ~DB_REVISION;
 			}
 		}
 	}
 	else {
-		cddbd_snprintf(buf, sizeof(buf), revstr, CDDBMINREV);
+		cddbd_snprintf(buf, sizeof(buf), revstr, (long long)CDDBMINREV);
 		strcat(buf, "\n");
 
 		p = (char *)strdup(buf);
@@ -2547,7 +2568,7 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 
 	for(; !list_rewound(lh); list_forw(lh)) {
 		lp = list_cur(lh);
-		if(sscanf((char *)lp->l_data, revstr, &db->db_rev) == 1)
+		if(db_parse_revision((char *)lp->l_data, &ignored_revision) == 1)
 			break;
 	}
 
@@ -2731,7 +2752,7 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 		lp = list_cur(lh);
 		discid = ptr_to_uint32 (lp->l_data);
 
-		if((discid & 0xFF) != db->db_trks) {
+		if((discid & 0xFF) != (unsigned int)db->db_trks) {
 			cddbd_snprintf(errstr, CDDBBUFSIZ,
 			    "invalid disc ID %08x in %s",
 			    discid, parstab[DP_DISCID].dp_name);
@@ -2928,8 +2949,7 @@ db_write_str(FILE *fp, lhead_t *lh, db_parse_t *dp, int trk)
 			return 0;
 
 		if(fp == stdout) {
-			strncpy(buf, (char *)lp->l_data, sizeof(buf));
-			buf[sizeof(buf) - 1] = '\0';
+			snprintf(buf, sizeof(buf), "%s", (char *)lp->l_data);
 			strip_crlf(buf);
 
 			if(fprintf(fp, "%s\r\n", buf) == EOF)
@@ -3675,7 +3695,7 @@ db_sum_discid(int n)
 	char *p;
 	char buf[12];
 
-	cddbd_snprintf(buf, sizeof(buf), "%lu", (unsigned int)n);
+	cddbd_snprintf(buf, sizeof(buf), "%u", (unsigned int)n);
 
 	for(ret = 0, p = buf; *p != '\0'; p++)
 		ret += *p - '0';
@@ -3691,6 +3711,10 @@ db_gen_discid(db_t *db)
 	int n;
 	int t;
 	int offtab[CDDBMAXTRK + 1];
+
+	/* Reject invalid track counts before indexing the offsets. */
+	if(db->db_trks < 1 || db->db_trks > CDDBMAXTRK)
+		return 0;
 
 	/* Convert to seconds. */
 	for(i = 0; i < db->db_trks; i++)
@@ -3852,7 +3876,7 @@ db_cmp(db_t *db1, db_t *db2)
 		return -1;
 
 	/* Otherwise, compare the revision. */
-	return(db1->db_rev - db2->db_rev);
+	return (db1->db_rev > db2->db_rev) - (db1->db_rev < db2->db_rev);
 }
 
 /* unlink an entry and all other entries listed on it's DISCID line */
@@ -3934,9 +3958,9 @@ db_link(db_t *db, char *dir, char *name, int fix)
 		if(stat(dblink, &sbuf2) == 0) {
 			if(verbose && sbuf.st_ino != sbuf2.st_ino) {
 				cddbd_log(LOG_ERR,
-				    "Warning: %s (ino %u) not linked to %s "
-				    "(ino %u)",
-				    dblink, sbuf2.st_ino, dbname, sbuf.st_ino);
+				    "Warning: %s (ino %ju) not linked to %s "
+				    "(ino %ju)",
+				    dblink, (uintmax_t)sbuf2.st_ino, dbname, (uintmax_t)sbuf.st_ino);
 			}
 			continue;
 		}
@@ -4188,6 +4212,7 @@ db_content_check(db_t *db, int phase, int subphase)
 char *
 db_field(db_t *db, int phase, int subphase)
 {
+	(void)db;
 	db_parse_t *dp;
 	static char name[CDDBPHASESZ];
 
@@ -4362,7 +4387,7 @@ asy_encode(char *buf, char **out)
 		if(asy_mappable((unsigned char)*buf)) {
 			o = char_to_octet((unsigned char)*buf, '%');
 			len = strlen(o);
-			strncpy(p, o, len);
+			memcpy(p, o, (size_t)len);
 			p += len;
 		}
 		else {
@@ -4446,6 +4471,8 @@ db_strings_multi(lhead_t *lh, db_parse_t *dp,
 int
 db_strings_str(lhead_t *lh, db_parse_t *dp, int trk,
 	       int (*func)(char **p, void *x), void *arg) {
+	(void)dp;
+	(void)trk;
 	link_t *lp;
 	int x;
 
@@ -4465,6 +4492,7 @@ db_strings_str(lhead_t *lh, db_parse_t *dp, int trk,
 int
 db_latin1_utf8_aux(char **p, void *unused)
 {
+	(void)unused;
 	char *s;
 
 	charset_latin1_utf8(*p, &s);
@@ -4519,8 +4547,6 @@ db_utf8_latin1(db_t *db)
 	
 	if (db_strings(db, db_utf8_latin1_aux, &inexact))
 		return -1;
-	if (inexact)
-		; /* XXX add warning? */
 	
 	db->db_flags &= ~(DB_ENC_UTF8 | DB_ENC_LATIN1);
 	db->db_flags |= DB_ENC_LATIN1;
@@ -4530,6 +4556,7 @@ db_utf8_latin1(db_t *db)
 int
 db_utf8_latin1_exact_aux(char **p, void *unused)
 {
+	(void)unused;
 	char *s;
 	int r;
 
@@ -4564,6 +4591,7 @@ db_utf8_latin1_exact(db_t *db)
 int
 db_looks_like_utf8_aux(char **p, void *unused)
 {
+	(void)unused;
 	return !charset_is_utf8(*p);
 }
 
