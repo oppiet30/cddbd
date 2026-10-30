@@ -2051,9 +2051,9 @@ db_t *db_read(FILE *fp, char *errstr, int flags) {
 		/* pick-up email info added in posting process */
 		sscanf(buf, "## Cs: %d", &db->db_eh.eh_charset);
 		sscanf(buf, "## En: %d", &db->db_eh.eh_encoding);
-		sscanf(buf, "## To: %s", &db->db_eh.eh_to);
-		sscanf(buf, "## Rc: %s", &db->db_eh.eh_rcpt);
-		sscanf(buf, "## Ho: %s", &db->db_eh.eh_host);
+		sscanf(buf, "## To: %2047s", db->db_eh.eh_to);
+		sscanf(buf, "## Rc: %2047s", db->db_eh.eh_rcpt);
+		sscanf(buf, "## Ho: %2047s", db->db_eh.eh_host);
 
 		/* zeke - look for valid marker on line, else bad line entry... */
 		class = db_classify(buf, &n, &p);
