@@ -18,6 +18,12 @@ jobs:
           test -s access.h
           test -s secure.c
       - name: Build in parallel
-        run: make -j4
+        run: make -j4 cf=-Werror
       - name: Verify executable
         run: test -x ./cddbd && file ./cddbd
+      - name: Regression checks
+        run: make check cf=-Werror
+      - name: C17 regression checks
+        run: make check CFLAGS="-std=gnu17 -O2 -Wall -Wextra -Werror"
+      - name: Memory and undefined-behavior checks
+        run: make check CFLAGS="-std=gnu17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"

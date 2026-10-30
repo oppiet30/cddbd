@@ -21,7 +21,7 @@
  */
 
 #ifndef LINT
-static char *const _inet_c_ident_ = "@(#)$Id: inet.c,v 1.26 2004/08/30 19:46:19 megari Exp $";
+/* _inet_c_ident_ = "@(#)$Id: inet.c,v 1.26 2004/08/30 19:46:19 megari Exp $" */
 #endif
 
 #include <stdlib.h>
@@ -327,7 +327,7 @@ match_host(char *ahost)
 int
 comp_ip(char *ip, char *domain)
 {
-	int len;
+	size_t len;
 	char *p;
 	char tdom[CDDBBUFSIZ];
 	
@@ -558,7 +558,7 @@ cddbp_open(csite_t *sp)
 
 	if(!sock_write(buf, 0, 1)) {
 		cddbd_log(LOG_ERR | LOG_NET,
-		    "Failed to handshake with %s server (%s).",
+		    "Failed to handshake with %s server (%d).",
 		    site, errno);
 		sock_close();
 		return 0;
@@ -608,7 +608,7 @@ cddbp_open(csite_t *sp)
 	
 	if((p = strstr(buf, saltstr)) == NULL) {
 		cddbd_log(LOG_ERR | LOG_NET,
-		    "Malformed %s response from %s server: %s", site, buf);
+		    "Malformed validation response from %s server: %s", site, buf);
 
 		(void)sock_write("\n", 0, 1);
 		sock_close();
@@ -619,7 +619,7 @@ cddbp_open(csite_t *sp)
 
 	if(sscanf(p, "%08x", &salt) != 1) {
 		cddbd_log(LOG_ERR | LOG_NET,
-		    "Malformed %s response from %s server: %s", site, buf);
+		    "Malformed validation response from %s server: %s", site, buf);
 
 		(void)sock_write("\n", 0, 1);
 		sock_close();
@@ -866,7 +866,7 @@ cddbp_transmit(db_t *db, char *category, unsigned int discid, int use_proto)
 
 	if(!sock_write(buf, 0, 1)) {
 		cddbd_log(LOG_ERR | LOG_XMIT,
-		    "Failed to send write command to %s server (%s).",
+		    "Failed to send write command to %s server (%d).",
 		    cddbphost, errno);
 		return 0;
 	}
@@ -926,7 +926,7 @@ cddbp_put(FILE *fp, char *file)
 
 	if(!sock_write(buf, 0, 1)) {
 		cddbd_log(LOG_ERR | LOG_XMIT,
-		    "Failed to send put command to %s server (%s).",
+		    "Failed to send put command to %s server (%d).",
 		    cddbphost, errno);
 		return 0;
 	}
@@ -1031,7 +1031,7 @@ smtp_open()
 
 	if(!sock_write("helo\n", 0, 1)) {
 		cddbd_log(LOG_ERR | LOG_NET,
-		    "Failed to handshake with %s SMTP server (%s)",
+		    "Failed to handshake with %s SMTP server (%d)",
 		    smtphost, errno);
 
 		sock_close();
@@ -1057,7 +1057,7 @@ smtp_open()
 
 	if(!sock_write(buf, 0, 1)) {
 		cddbd_log(LOG_ERR | LOG_NET,
-		    "Failed to handshake with %s SMTP server (%s)",
+		    "Failed to handshake with %s SMTP server (%d)",
 		    smtphost, errno);
 
 		sock_close();
@@ -1149,7 +1149,7 @@ smtp_command(csite_t *sp, char *rcmd, int lev, char *hto, char *mfrom)
 	else
 		key = 0;
 
-	cddbd_snprintf(buf2, sizeof(buf2), "cmd_%08x", cddbd_rand());
+	cddbd_snprintf(buf2, sizeof(buf2), "cmd_%08x", (unsigned int)cddbd_rand());
 	cddbd_snprintf(buf, sizeof(buf), cmd_send_subj2, buf2);
 
 	if(!smtp_transmit(fp, -1, buf, hto, hto, mfrom, 0, MF_MULTI, 0, key)) {
@@ -1282,7 +1282,7 @@ smtp_transmit(FILE *fp, int set, char *subject, char *rcpt, char *hto, char *mfr
 
 	if(flags & MF_MULTI) {
 		cddbd_snprintf(bound, sizeof(bound), "---=====cddbd_%08X%08X_",
-		    cddbd_rand(), cddbd_rand());
+		    (unsigned int)cddbd_rand(), (unsigned int)cddbd_rand());
 
 		if(!smtp_write_hdr_type(multi_alt, bound, set))
 			return 0;
@@ -1424,7 +1424,7 @@ smtp_write_body(FILE *fp, int enc, int set, char *str)
 				return 0;
 			}
 
-			if(len > 0 && fwrite(p, 1, len, tfp) != len) {
+			if(len > 0 && fwrite(p, 1, (size_t)len, tfp) != (size_t)len) {
 				cddbd_log(LOG_ERR | LOG_NET,
 				    "Can't write SMTP tmp file %s (%d)",
 				    tfile, errno);
@@ -1972,6 +1972,7 @@ get_serv_port(int port, int serv)
 void
 chldhand(int sig)
 {
+	(void)sig;
 	while(waitpid(-1, 0, WNOHANG) != -1)
 		continue;
 

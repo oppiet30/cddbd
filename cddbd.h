@@ -545,7 +545,7 @@ typedef struct email_hdr_db {
 typedef struct db {
 	email_hdr_db_t db_eh;		/* zeke - added for eh transfer... */
 	int db_flags;
-	int db_rev;
+	long long db_rev;		/* Nonnegative on-disk revision. */
 	int db_offset[CDDBMAXTRK];
 	short db_disclen;
 	char db_trks;
@@ -850,9 +850,18 @@ typedef unsigned int uint32_t;
 #endif
 
 
+/* Compiler diagnostics are optional on non-GNU compilers. */
+#if defined(__GNUC__) || defined(__clang__)
+#define CDDBD_PRINTF(f, a) __attribute__((format(printf, f, a)))
+#define CDDBD_NORETURN __attribute__((noreturn))
+#else
+#define CDDBD_PRINTF(f, a)
+#define CDDBD_NORETURN
+#endif
+
 /* External prototypes. */
 
-void _quit(int, int);
+void _quit(int, int) CDDBD_NORETURN;
 void cddbd_bcopy(char *, char *, int);
 void cddbd_build_fuzzy(void);
 void cddbd_bzero(char *, int);
@@ -862,14 +871,16 @@ void cddbd_delay(int);
 void cddbd_freetemp(char *);
 void cddbd_hang(void);
 void cddbd_lock_free(clck_t *);
-void cddbd_log();
+void cddbd_log(unsigned int, const char *, ...)
+    CDDBD_PRINTF(2, 3);
 void cddbd_mail(int);
 void cddbd_match(void);
 void cddbd_parse_args(arg_t *, int);
 void cddbd_rmt_op(int, char *, char *, char *);
 void cddbd_cddbp_cmd(void);
 void cddbd_setuid(void);
-void cddbd_snprintf();
+void cddbd_snprintf(char *, int, const char *, ...)
+    CDDBD_PRINTF(3, 4);
 void cddbd_stand(int);
 void cddbd_tea(int, ct_data_t *, ct_key_t *);
 void cddbd_unlock(clck_t *);
@@ -890,7 +901,7 @@ void fp_copy_init(void);
 void generate_key(void);
 void generate_pwd(void);
 void get_rmt_hostname(int, char *, char *);
-void quit(int);
+void quit(int) CDDBD_NORETURN;
 void setsiteent(void);
 void sighand(int);
 void smtp_close(void);

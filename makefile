@@ -165,3 +165,7 @@ inet.o: access.h cddbd.h configurables.h list.h patchlevel.h
 mail.o: cddbd.h configurables.h list.h
 secure.o: access.h secure.c
 xmit.o: cddbd.h configurables.h list.h
+
+.PHONY: check
+check: $(GEN)
+	CC="$(CC)" CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" sh tests/run.sh

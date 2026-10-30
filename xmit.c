@@ -21,7 +21,7 @@
  */
 
 #ifndef LINT
-static char *const _sites_c_ident_ = "@(#)$Id: xmit.c,v 1.18.2.3 2006/04/18 22:10:24 joerg78 Exp $";
+/* _sites_c_ident_ = "@(#)$Id: xmit.c,v 1.18.2.3 2006/04/18 22:10:24 joerg78 Exp $" */
 #endif
 
 #include <stdlib.h>
@@ -36,6 +36,7 @@ static char *const _sites_c_ident_ = "@(#)$Id: xmit.c,v 1.18.2.3 2006/04/18 22:1
 #include <netinet/in.h>
 #include "access.h"
 #include "cddbd.h"
+#include <stdint.h>
 
 
 /* Preprocessor definitions. */
@@ -215,7 +216,7 @@ getsiteent(int type)
 
 		default:
 			cddbd_log(LOG_ERR,
-			    "Internal error: unknown site type: %s.", type);
+			    "Internal error: unknown site type: %d.", type);
 			continue;
 		}
 			
@@ -263,8 +264,7 @@ getsiteent(int type)
 					continue;
 				}
 
-				strncpy(site.st_addr, args.arg[2],
-				    sizeof(site.st_addr));
+				snprintf(site.st_addr, sizeof(site.st_addr), "%s", args.arg[2]);
 
 				break;
 
@@ -338,7 +338,7 @@ getsiteent(int type)
 					cddbd_log(LOG_ERR, "Site \"%s\" "
 					    "multiply defined in group \"%s\""
 					    " in %s on line %d.", args.arg[i],
-					    (void *)group->lh_data, sitefile,
+					    (char *)group->lh_data, sitefile,
 					    site_line);
 					quit(1);
 				}
@@ -1049,8 +1049,8 @@ cddbd_do_transmit(csite_t *sp)
 	bps = tcnt / xtime;
 
 	cddbd_log(LOG_INFO,
-	    "Transmitted %d of %d files, %d bytes in %d sec (%d.%dK/sec).",
-	    xmit, files, tcnt, xtime, (int)(bps / 1024.0),
+	    "Transmitted %d of %d files, %d bytes in %jd sec (%d.%dK/sec).",
+	    xmit, files, tcnt, (intmax_t)xtime, (int)(bps / 1024.0),
 	    (int)((bps % 1024) / 1024.0 * 10));
 
 	switch(sp->st_proto) {

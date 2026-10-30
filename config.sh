@@ -129,7 +129,7 @@ trap "rm -f $TMPFILE; exit 1" 1 2 3 5 15
 if [ -x /usr/5bin/echo ]
 then
 	ECHO=/usr/5bin/echo				# SunOS SysV echo
-elif [ -z "`(echo -e a) 2>/dev/null | fgrep e`" ]
+elif [ -z "`(echo -e a) 2>/dev/null | grep -F e`" ]
 then
 	ECHO="echo -e"					# GNU bash, etc.
 else

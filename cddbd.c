@@ -21,7 +21,7 @@
  */
 
 #ifndef LINT
-static char *const _cddbd_c_ident_ = "@(#)$Id: cddbd.c,v 1.41.2.9 2006/04/18 22:10:25 joerg78 Exp $";
+/* _cddbd_c_ident_ = "@(#)$Id: cddbd.c,v 1.41.2.9 2006/04/18 22:10:25 joerg78 Exp $" */
 #endif
 
 #include <stdlib.h>
@@ -44,6 +44,7 @@ static char *const _cddbd_c_ident_ = "@(#)$Id: cddbd.c,v 1.41.2.9 2006/04/18 22:
 #include "patchlevel.h"
 #include "access.h"
 #include "cddbd.h"
+#include <stdarg.h>
 
 /**
  * \todo The windows version needs to be properly tested.
@@ -80,8 +81,8 @@ void cddbd_db_init(void);
 void cddbd_init(void);
 void cddbd_input_to(void);
 void cddbd_lock_free_lk(void *);
-void cddbd_log_prim(FILE *, int, char *, void *, void *, void *, void *,
-    void *, void *);
+static void cddbd_log_prim(FILE *, int, const char *, ...)
+    CDDBD_PRINTF(3, 4);
 void cddbd_mk_servfiles(void);
 void cddbd_mk_workdirs(void);
 void cddbd_read_access(char *, int);
@@ -136,7 +137,6 @@ int comp_log(void *, void *);
 int comp_logdata(const void *, const void *);
 int comp_rev(char *, char *);
 int cvt_date(char *, char *);
-int get_conv(char **, char *);
 int has_parent_dir(char *);
 int make_year(int);
 int match_rev(char *, char *, int);
@@ -315,12 +315,12 @@ static lhead_t *lock_head;			/* Lock list head. */
 
 /* Interface table. */
 static iface_t iface_map[IF_NIFACE] = {
-	{ "submit_mail",   's', (IFL_NOCOUNT | IFL_NOCONN | IFL_NOLOG) },
-	{ "email",         'e', (IFL_NOCONN | IFL_CMD) },
-	{ "cddbp",         'c', IFL_CMD },
-	{ "http",          'h', IFL_CMD },
-	{ "Unknown",      '\0', (IFL_NOCONN | IFL_NOHEAD) },
-	{ "none",         '\0', (IFL_NOCONN | IFL_NOHEAD | IFL_NOLOG) }
+	{ "submit_mail",   's', (IFL_NOCOUNT | IFL_NOCONN | IFL_NOLOG), NULL, NULL },
+	{ "email",         'e', (IFL_NOCONN | IFL_CMD), NULL, NULL },
+	{ "cddbp",         'c', IFL_CMD, NULL, NULL },
+	{ "http",          'h', IFL_CMD, NULL, NULL },
+	{ "Unknown",      '\0', (IFL_NOCONN | IFL_NOHEAD), NULL, NULL },
+	{ "none",         '\0', (IFL_NOCONN | IFL_NOHEAD | IFL_NOLOG), NULL, NULL }
 };
 
 
@@ -1806,7 +1806,7 @@ cddbd_read_access(char *accessfile, int mandatory)
 				if(n < 0) {
 					cddbd_log(LOG_ERR,
 					    "Illegal %s value, line %d.",
-					    tp->name, accessfile);
+					    tp->name, line);
 					quit(QUIT_ERR);
 				}
 
@@ -3328,6 +3328,7 @@ void do_cddb_write(arg_t *args)
 void
 do_quit(arg_t *args)
 {
+	(void)args;
 	quit(QUIT_OK);
 }
 
@@ -3345,6 +3346,7 @@ do_cddb_srch(arg_t *args)
 void
 do_ver(arg_t *args)
 {
+	(void)args;
 	printf("200 ");
 	printf(verstr, VERSION, PATCHLEVEL);
 	printf("\r\n");
@@ -4663,7 +4665,7 @@ cvt_date(char *date, char *buf)
 	/* Generate a new date based on the user's input. */
 	for(i = 0; i < x; i++) {
 		cddbd_snprintf(tmp, sizeof(tmp), "%04d", d[i]);
-		strncpy(&buf[(ord[i] * 4)], tmp, 4);
+		memcpy(&buf[(ord[i] * 4)], tmp, 4);
 	}
 
 	return(date_to_tm(buf) != 0);
@@ -5331,7 +5333,7 @@ cddbd_cleantemp(void)
 void
 trunc_log(void)
 {
-	int cc;
+	size_t cc;
 	FILE *ifp;
 	FILE *ofp;
 	char *tlogfile;
@@ -5341,7 +5343,7 @@ trunc_log(void)
 	/* Truncate the log if it's too long. */
 	if(stat(servfile[SF_LOG], &sbuf) != 0) {
 		cddbd_log(LOG_ERR, "Can't stat logfile: %s (%d).",
-		    servfile[SF_LOG]);
+		    servfile[SF_LOG], errno);
 		return;
 	}
 
@@ -5350,13 +5352,13 @@ trunc_log(void)
 
 	if((ifp = fopen(servfile[SF_LOG], "r")) == NULL) {
 		cddbd_log(LOG_ERR, "Can't open logfile %s for reading (%d).",
-		    servfile[SF_LOG], errno_as_ptr);
+		    servfile[SF_LOG], errno);
 		return;
 	}
 
 	if(fseek(ifp, -(log_lowat), SEEK_END)) {
 		cddbd_log(LOG_ERR, "Can't truncate log file: %s. "
-		    "Seek failed (%d)", servfile[SF_LOG], errno_as_ptr);
+		    "Seek failed (%d)", servfile[SF_LOG], errno);
 		fclose(ifp);
 		return;
 	}
@@ -5365,7 +5367,7 @@ trunc_log(void)
 
 	if((ofp = fopen(tlogfile, "w")) == NULL) {
 		cddbd_log(LOG_ERR, "Can't open temp logfile %s for "
-		    "writing (%d).", servfile[SF_LOG], errno_as_ptr);
+		    "writing (%d).", servfile[SF_LOG], errno);
 		fclose(ifp);
 		return;
 	}
@@ -5383,7 +5385,7 @@ trunc_log(void)
 	while((cc = fread(buf, 1, sizeof(buf), ifp)) > 0) {
 		if(fwrite(buf, 1, cc, ofp) != cc) {
 			cddbd_log(LOG_ERR, "Can't write temp logfile: %s (%d).",
-			    tlogfile, errno_as_ptr);
+			    tlogfile, errno);
 
 			cddbd_freetemp(tlogfile);
 			fclose(ifp);
@@ -5408,108 +5410,6 @@ trunc_log(void)
 	cddbd_freetemp(tlogfile);
 
 	return;
-}
-
-
-int
-get_conv(char **p, char *buf)
-{
-	int cc;
-	int pre1;
-	int pre2;
-	char c;
-	char m;
-	char *cp= (char *) 0;
-	char *p2;
-	char cbuf[CDDBBUFSIZ];
-	char *mod = "hlL";
-	char *conv = "cdDeEfginoOpsuUxX%";
-
-	cc = 0;
-
-	SCOPY(p, buf);
-
-	if(**p == '%') {
-		SCOPY(p, buf);
-		SPUT('\0', buf);
-		return 0;
-	}
-
-	p2 = *p;
-
-	while(*p2 != '\0')
-		if((cp = strchr(conv, *p2)) == 0)
-			p2++;
-		else
-			break;
-
-	if(*p2 == '\0') {
-		/* no conversion specifier found */
-		strncpy(buf, *p, (CDDBBUFSIZ - 1));
-		buf[CDDBBUFSIZ - 1] = '\0';
-		*p = p2;
-		return 0;
-	}
-
-	if (cp == (char *) 0)
-	{ /* This isn't really possible! cp can only be NULL if **p
-	   * points to a string containing only % at the end.  This
-	   * case is already handled above.
-	   */
-		return 0;
-	}
-	c = *cp;
-
-	if((cp = strchr(mod, *(p2 - 1))) != 0)
-		m = *(p2 - 1);
-	else
-		m = 0;
-
-	while(**p != '\0' && **p != c && (!m || **p != m) && !isdigit(**p) &&
-	    **p != '.')
-		SCOPY(p, buf);
-
-	pre1 = -1;
-	pre2 = -1;
-
-	if(isdigit(**p) || **p == '.') {
-		if(**p == '0')
-			SASGN('0', buf);
-
-		if(sscanf(*p, "%d.%d", &pre1, &pre2) != 2)
-			if(sscanf(*p, "%d", &pre1) != 1)
-				sscanf(*p, ".%d", &pre2);
-	}
-
-	if(pre1 >= CDDBBUFSIZ)
-		pre1 = CDDBBUFSIZ - 1;
-
-	if(pre2 >= CDDBBUFSIZ || (pre2 == -1 && c == 's'))
-		pre2 = CDDBBUFSIZ - 1;
-
-	if(pre1 >= 0) {
-		sprintf(cbuf, "%d", pre1);
-		strncpy(&buf[cc], cbuf, (CDDBBUFSIZ - cc - 1));
-		buf[CDDBBUFSIZ - 1] = '\0';
-		cc = strlen(buf);
-	}
-
-	if(pre2 >= 0) {
-		sprintf(cbuf, ".%d", pre2);
-		strncpy(&buf[cc], cbuf, (CDDBBUFSIZ - cc - 1));
-		buf[CDDBBUFSIZ - 1] = '\0';
-		cc = strlen(buf);
-	}
-
-	*p = p2 + 1;
-
-	if(m != 0)
-		SASGN(m, buf);
-
-	SASGN(c, buf);
-	SPUT('\0', buf);
-
-	return 1;
 }
 
 
@@ -5878,7 +5778,7 @@ cddbd_cgi_cmd(void)
 		s = cddbd_safenv(cgi_query_string);
 		len = strlen(s);
 
-		if(len < 0 || len >= sizeof(cmd)) {
+		if(len < 0 || (size_t)len >= sizeof(cmd)) {
 			finish_header(0);
 			printf("500 Invalid input length: max %d, min %d, "
 			    "actual %d.\r\n", (int) (sizeof(cmd) - 1), 0, len);
@@ -5890,14 +5790,14 @@ cddbd_cgi_cmd(void)
 			_quit(QUIT_ERR, 0);
 		}
 
-		strncpy(cmd, s, len);
+		memcpy(cmd, s, (size_t)len);
 		cmd[len] = '\0';
 	}
 	else if(!strcmp(s, "POST")) {
 		s = cddbd_safenv(cgi_content_len);
 		len = atoi(s);
 
-		if(len < 0 || len >= sizeof(cmd)) {
+		if(len < 0 || (size_t)len >= sizeof(cmd)) {
 			finish_header(0);
 			printf("500 Invalid input length: max %d, min %d, "
 			    "actual %d.\r\n", (int) (sizeof(cmd) - 1), 0, len);
@@ -6177,103 +6077,51 @@ cddbd_delay(int delay)
 
 
 void
-cddbd_snprintf(char *buf, int size, char *fmt, void *a0, void *a1, void *a2,
-    void *a3, void *a4, void *a5, void *a6, void *a7, void *a8, void *a9)
+cddbd_snprintf(char *buf, int size, const char *fmt, ...)
 {
-	int x;
-	int ano;
-	int cnt;
-	void *arg[10];
-	char *p;
-	char cbuf[CDDBBUFSIZ];
-	char tbuf[CDDBBUFSIZ];
+	va_list ap;
+	int count;
 
-	arg[0] = a0;
-	arg[1] = a1;
-	arg[2] = a2;
-	arg[3] = a3;
-	arg[4] = a4;
-	arg[5] = a5;
-	arg[6] = a6;
-	arg[7] = a7;
-	arg[8] = a8;
-	arg[9] = a9;
-
-	p = fmt;
-	cnt = 0;
-	ano = 0;
-
-	while(cnt < size) {
-		switch(*p) {
-		case '%':
-			x = get_conv(&p, cbuf);
-
-			if((ano + x) >= 10) {
-				if(!logging) {
-					cddbd_log(LOG_ERR,
-					    "Too many args to snprintf, "
-					    "format: \"%s\"", fmt);
-				}
-
-				buf[cnt] = '\0';
-				return;
-			}
-
-			sprintf(tbuf, cbuf, arg[ano]);
-			strncpy(&buf[cnt], tbuf, (size - cnt - 1));
-			buf[size - 1] = '\0';
-			cnt = strlen(buf);
-
-			ano += x;
-
-			break;
-
-		case '\0':
-			buf[cnt] = '\0';
-			return;
-
-		default:
-			buf[cnt] = *p;
-			cnt++;
-			p++;
-
-			break;
-		}
-	}
-
-	buf[size - 1] = '\0';
-
-	if(!logging)
+	if(size <= 0)
+		return;
+	va_start(ap, fmt);
+	count = vsnprintf(buf, (size_t)size, fmt, ap);
+	va_end(ap);
+	if(count < 0)
+		buf[0] = '\0';
+	else if(count >= size && !logging)
 		cddbd_log(LOG_ERR, "Buf overflow in snprintf: \"%s\"", buf);
 }
 
 
-void
-cddbd_log_prim(FILE *fp, int flags, char *fmt, void *a1, void *a2, void *a3,
-    void *a4, void *a5, void *a6)
+static void
+cddbd_vlog_prim(FILE *fp, int flags, const char *fmt, va_list ap)
 {
 	char buf[CDDBBUFSIZ];
 
-	/* Log it. */
 	if(!debug)
 		fprintf(fp, "%s [%05d,%08X] ", get_time(0), curpid, flags);
-
-	/* Copy fmt to a temp buffer so we can work on it. */
-	strncpy(buf, fmt, sizeof(buf));
-	buf[sizeof(buf) - 1] = '\0';
+	snprintf(buf, sizeof(buf), "%s", fmt);
 	strip_crlf(buf);
-
-	/* Print the log message. */
-	fprintf(fp, buf, a1, a2, a3, a4, a5, a6);
+	vfprintf(fp, buf, ap);
 	fputc('\n', fp);
 }
 
-
-/* This should be the last function in the file, to avoid compile errors. */
-void
-cddbd_log(unsigned int flags, char *fmt, void *a1, void *a2, void *a3,
-    void *a4, void *a5, void *a6)
+static void
+cddbd_log_prim(FILE *fp, int flags, const char *fmt, ...)
 {
+	va_list ap;
+
+	va_start(ap, fmt);
+	cddbd_vlog_prim(fp, flags, fmt, ap);
+	va_end(ap);
+}
+
+/* Log a message while preserving the caller's argument types. */
+void
+cddbd_log(unsigned int flags, const char *fmt, ...)
+{
+	va_list ap;
 	FILE *fp;
 	unsigned int x;
 
@@ -6297,8 +6145,7 @@ cddbd_log(unsigned int flags, char *fmt, void *a1, void *a2, void *a3,
 		if(!debug) {
 			cddbd_log_prim(fp, LOG_ERR,
 			    "Warning: can't open log file: %s (%d)",
-			    (void *)servfile[SF_LOG], errno_as_ptr,
-			    0, 0, 0, 0);
+			    servfile[SF_LOG], errno);
 		}
 	}
 	else if(logging == 1)
@@ -6309,15 +6156,16 @@ cddbd_log(unsigned int flags, char *fmt, void *a1, void *a2, void *a3,
 
 	if(!x)
 		cddbd_log_prim(fp, LOG_ERR | LOG_INTERN,
-		    "No log superflag in following message.", 0, 0, 0, 0, 0, 0);
+		    "No log superflag in following message.");
 
 	if(x & (x - 1))
 		cddbd_log_prim(fp, LOG_ERR | LOG_INTERN,
-		    "Multiple log superflags in following message.",
-		    0, 0, 0, 0, 0, 0);
+		    "Multiple log superflags in following message.");
 
 	/* Log the message. */
-	cddbd_log_prim(fp, flags, fmt, a1, a2, a3, a4, a5, a6);
+	va_start(ap, fmt);
+	cddbd_vlog_prim(fp, flags, fmt, ap);
+	va_end(ap);
 
 	if(fp != stderr && fp != stdout) {
 		fclose(fp);

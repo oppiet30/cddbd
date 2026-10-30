@@ -21,7 +21,7 @@
  */
 
 #ifndef LINT
-static char *const _fuzzy_c_ident_ = "@(#)$Id: fuzzy.c,v 1.21.2.4 2006/04/19 16:49:05 joerg78 Exp $";
+/* _fuzzy_c_ident_ = "@(#)$Id: fuzzy.c,v 1.21.2.4 2006/04/19 16:49:05 joerg78 Exp $" */
 #endif
 
 #include <stdlib.h>
