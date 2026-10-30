@@ -45,11 +45,11 @@ RELEASE = $(MANIFEST) $(CMD).1
 # OSLDFLAGS = -lnsl -lsocket
 
 # cf ... debugging; mostly for use with gcc
-cf= # -g -Wall -Wuninitialized -Wunused -pedantic -Wformat
+cf= # Optional additional compiler flags for local debugging
 # the following is used for Alpha/OSF1 V4.0
 # cf=-g4 -w0 -O0
 
-CFLAGS += -std=gnu99 -O2 $(OSCFLAGS) $(cf)
+CFLAGS += -std=gnu99 -O2 -Wall -Wextra $(OSCFLAGS) $(cf)
 LDFLAGS = $(OSLDFLAGS)
 
 CDDBDVER := cddbd-1.5.2
