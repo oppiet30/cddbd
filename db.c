@@ -3795,7 +3795,12 @@ db_strcpy(db_t *db, int phase, int n, char *to, int size)
 		if(len > size)
 			len = size;
 
-		strncat(to, (char *)lp->l_data, len);
+		/* Append only the bytes that fit in the remaining buffer. */
+		{
+			int used = strlen(to);
+			memcpy(to + used, lp->l_data, len);
+			to[used + len] = '\0';
+		}
 		strip_crlf(to);
 		to[rsize] = '\0';
 
